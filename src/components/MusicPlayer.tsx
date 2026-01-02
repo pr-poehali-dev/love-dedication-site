@@ -9,26 +9,61 @@ const MusicPlayer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState(0);
   const [volume, setVolume] = useState(50);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
 
   const playlist = [
-    { title: 'Романтическая мелодия 1', artist: 'Добавь свою музыку' },
-    { title: 'Наша песня', artist: 'Загрузи треки' },
-    { title: 'Любимая композиция', artist: 'Используй YouTube/Spotify' }
+    { 
+      title: 'Careless Whisper', 
+      artist: 'George Michael',
+      youtubeId: 'SPpxofqhF3U'
+    }
   ];
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume / 100;
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+
+    (window as any).onYouTubeIframeAPIReady = () => {
+      const player = new (window as any).YT.Player('youtube-player', {
+        height: '0',
+        width: '0',
+        videoId: playlist[0].youtubeId,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          loop: 1,
+          playlist: playlist[0].youtubeId
+        },
+        events: {
+          onReady: (event: any) => {
+            setYoutubePlayer(event.target);
+            event.target.setVolume(volume);
+          }
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    if (youtubePlayer) {
+      youtubePlayer.setVolume(volume);
     }
-  }, [volume]);
+  }, [volume, youtubePlayer]);
+
+  useEffect(() => {
+    if (youtubePlayer && playlist[currentTrack]) {
+      youtubePlayer.loadVideoById(playlist[currentTrack].youtubeId);
+    }
+  }, [currentTrack, youtubePlayer]);
 
   const togglePlay = () => {
-    if (audioRef.current) {
+    if (youtubePlayer) {
       if (isPlaying) {
-        audioRef.current.pause();
+        youtubePlayer.pauseVideo();
       } else {
-        audioRef.current.play();
+        youtubePlayer.playVideo();
       }
       setIsPlaying(!isPlaying);
     }
@@ -44,7 +79,7 @@ const MusicPlayer = () => {
 
   return (
     <>
-      <audio ref={audioRef} loop />
+      <div id="youtube-player" style={{ display: 'none' }}></div>
       
       <div className="fixed bottom-6 right-6 z-50">
         {!isOpen ? (
@@ -116,7 +151,7 @@ const MusicPlayer = () => {
 
             <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm text-center">
               <p className="text-muted-foreground">
-                💡 Добавь свои любимые треки через YouTube или загрузи файлы
+                🎵 Careless Whisper - George Michael
               </p>
             </div>
           </Card>
