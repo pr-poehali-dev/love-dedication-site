@@ -1,85 +1,98 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import Icon from '@/components/ui/icon';
 
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
 const MusicPlayer = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState(0);
   const [volume, setVolume] = useState(50);
-  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
+  const [player, setPlayer] = useState<any>(null);
+  const [playerReady, setPlayerReady] = useState(false);
 
-  const playlist = [
-    { 
-      title: 'Careless Whisper', 
-      artist: 'George Michael',
-      youtubeId: 'SPpxofqhF3U'
-    }
-  ];
+  const videoId = 'SPpxofqhF3U';
 
   useEffect(() => {
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
 
-    (window as any).onYouTubeIframeAPIReady = () => {
-      const player = new (window as any).YT.Player('youtube-player', {
-        height: '0',
-        width: '0',
-        videoId: playlist[0].youtubeId,
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          loop: 1,
-          playlist: playlist[0].youtubeId
-        },
-        events: {
-          onReady: (event: any) => {
-            setYoutubePlayer(event.target);
-            event.target.setVolume(volume);
-          }
-        }
-      });
+      window.onYouTubeIframeAPIReady = initializePlayer;
+    } else if (!player) {
+      initializePlayer();
+    }
+
+    return () => {
+      if (player) {
+        player.destroy();
+      }
     };
   }, []);
 
-  useEffect(() => {
-    if (youtubePlayer) {
-      youtubePlayer.setVolume(volume);
+  const initializePlayer = () => {
+    if (window.YT && window.YT.Player) {
+      const newPlayer = new window.YT.Player('youtube-player', {
+        height: '0',
+        width: '0',
+        videoId: videoId,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          rel: 0,
+          loop: 1,
+          playlist: videoId
+        },
+        events: {
+          onReady: (event: any) => {
+            setPlayer(event.target);
+            setPlayerReady(true);
+            event.target.setVolume(50);
+          },
+          onStateChange: (event: any) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              setIsPlaying(true);
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
+              setIsPlaying(false);
+            }
+          }
+        }
+      });
     }
-  }, [volume, youtubePlayer]);
+  };
 
   useEffect(() => {
-    if (youtubePlayer && playlist[currentTrack]) {
-      youtubePlayer.loadVideoById(playlist[currentTrack].youtubeId);
+    if (player && playerReady) {
+      player.setVolume(volume);
     }
-  }, [currentTrack, youtubePlayer]);
+  }, [volume, player, playerReady]);
 
   const togglePlay = () => {
-    if (youtubePlayer) {
+    if (player && playerReady) {
       if (isPlaying) {
-        youtubePlayer.pauseVideo();
+        player.pauseVideo();
       } else {
-        youtubePlayer.playVideo();
+        player.playVideo();
       }
-      setIsPlaying(!isPlaying);
     }
-  };
-
-  const nextTrack = () => {
-    setCurrentTrack((prev) => (prev + 1) % playlist.length);
-  };
-
-  const prevTrack = () => {
-    setCurrentTrack((prev) => (prev - 1 + playlist.length) % playlist.length);
   };
 
   return (
     <>
-      <div id="youtube-player" style={{ display: 'none' }}></div>
+      <div id="youtube-player"></div>
       
       <div className="fixed bottom-6 right-6 z-50">
         {!isOpen ? (
@@ -105,35 +118,18 @@ const MusicPlayer = () => {
             </div>
 
             <div className="mb-6">
-              <p className="font-semibold text-lg mb-1">{playlist[currentTrack].title}</p>
-              <p className="text-sm text-muted-foreground">{playlist[currentTrack].artist}</p>
+              <p className="font-semibold text-lg mb-1">Careless Whisper</p>
+              <p className="text-sm text-muted-foreground">George Michael</p>
             </div>
 
             <div className="flex items-center justify-center gap-4 mb-6">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={prevTrack}
-                className="hover:scale-110 transition-transform"
-              >
-                <Icon name="SkipBack" size={20} />
-              </Button>
-              
               <Button
                 onClick={togglePlay}
                 size="lg"
-                className="rounded-full w-14 h-14 hover:scale-110 transition-transform"
+                disabled={!playerReady}
+                className="rounded-full w-14 h-14 hover:scale-110 transition-transform disabled:opacity-50"
               >
                 <Icon name={isPlaying ? "Pause" : "Play"} size={24} />
-              </Button>
-              
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={nextTrack}
-                className="hover:scale-110 transition-transform"
-              >
-                <Icon name="SkipForward" size={20} />
               </Button>
             </div>
 
@@ -145,15 +141,26 @@ const MusicPlayer = () => {
                 max={100}
                 step={1}
                 className="flex-1"
+                disabled={!playerReady}
               />
               <span className="text-sm text-muted-foreground w-10">{volume}%</span>
             </div>
 
-            <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm text-center">
-              <p className="text-muted-foreground">
-                🎵 Careless Whisper - George Michael
-              </p>
-            </div>
+            {!playerReady && (
+              <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm text-center">
+                <p className="text-muted-foreground">
+                  ⏳ Загрузка плеера...
+                </p>
+              </div>
+            )}
+
+            {playerReady && (
+              <div className="mt-4 p-3 bg-secondary/50 rounded-lg text-sm text-center">
+                <p className="text-muted-foreground">
+                  🎵 Нажми Play для воспроизведения
+                </p>
+              </div>
+            )}
           </Card>
         )}
       </div>
